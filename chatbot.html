@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Booking Assistant</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body style="margin:0;font-family:system-ui,sans-serif">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    const SESSION_ID = 'session-' + Date.now(); // Fixed session ID
+
+    function ChatBot() {
+      const [msgs, setMsgs] = useState([]);
+      const [input, setInput] = useState('');
+      const [typing, setTyping] = useState(false);
+      const [btns, setBtns] = useState(['Hello', 'Book flight', 'Book hotel', 'Book car']);
+      const end = useRef(null);
+
+      useEffect(() => { setTimeout(() => send('Hi', true), 500); }, []);
+      useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, typing]);
+
+      const send = async (txt, auto = false) => {
+        const msg = txt || input;
+        if (!msg || typing) return;
+        if (!auto) setMsgs(p => [...p, { txt: msg, user: 1 }]);
+        setInput('');
+        setTyping(true);
+        try {
+          const res = await fetch('http://localhost:3000/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: msg, sessionId: SESSION_ID })
+          });
+          const data = await res.json();
+          setTimeout(() => {
+            setMsgs(p => [...p, { txt: data.reply, user: 0 }]);
+            setTyping(false);
+            const b = { GUIDED_FLOW: ['Done', 'Next', 'Back'], AWAITING_BOOKING_TYPE: ['Flight', 'Hotel', 'Car'], 
+              AWAITING_SOURCE: ['Amadeus', 'Farelogix'], AWAITING_FLIGHT_TYPE: ['One way', 'Round trip'] };
+            setBtns(b[data.state.phase] || ['Hello', 'Book flight', 'Book hotel', 'Book car']);
+          }, 600);
+        } catch { setMsgs(p => [...p, { txt: '❌ Connection error', user: 0 }]); setTyping(false); }
+      };
+
+      return (
+        <div style={{ width: '100vw', height: '100vh', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)', 
+          display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: '90%', maxWidth: '900px', height: '90vh', background: 'rgba(255,255,255,0.95)', 
+            borderRadius: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '24px', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+              <div style={{ width: '50px', height: '50px', background: 'linear-gradient(135deg, #0f172a, #334155)', 
+                borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🤖</div>
+              <div>
+                <h1 style={{ fontSize: '20px', fontWeight: '600', margin: 0, color: '#1a1a1a' }}>Booking Assistant</h1>
+                <span style={{ fontSize: '13px', color: '#22c55e', fontWeight: '500' }}>● Online</span>
+              </div>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {msgs.map((m, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: m.user ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ maxWidth: '70%', padding: '12px 18px', borderRadius: '20px', fontSize: '15px', lineHeight: '1.5',
+                    background: m.user ? 'linear-gradient(135deg, #0f172a, #1e293b)' : '#f0f0f0',
+                    color: m.user ? 'white' : '#1a1a1a', 
+                    borderBottomRightRadius: m.user ? '4px' : '20px',
+                    borderBottomLeftRadius: m.user ? '20px' : '4px' }}>{m.txt}</div>
+                </div>
+              ))}
+              {typing && (
+                <div style={{ display: 'flex' }}>
+                  <div style={{ padding: '12px 18px', borderRadius: '20px', background: '#f0f0f0', borderBottomLeftRadius: '4px' }}>
+                    <span style={{ fontSize: '20px', color: '#999' }}>● ● ●</span>
+                  </div>
+                </div>
+              )}
+              <div ref={end} />
+            </div>
+
+            <div style={{ padding: '16px 24px 24px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                {btns.map((b, i) => (
+                  <button key={i} onClick={() => send(b)} style={{ padding: '8px 16px', background: 'white', border: '1px solid #e0e0e0',
+                    borderRadius: '20px', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>{b}</button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <input style={{ flex: 1, padding: '14px 20px', border: '1px solid #e0e0e0', borderRadius: '25px', 
+                  fontSize: '15px', outline: 'none' }} value={input} onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && send()} placeholder="Type a message..." disabled={typing} />
+                <button onClick={() => send()} disabled={typing} style={{ width: '48px', height: '48px', 
+                  background: 'linear-gradient(135deg, #0f172a, #1e293b)', color: 'white', border: 'none', 
+                  borderRadius: '50%', fontSize: '24px', cursor: 'pointer', fontWeight: 'bold' }}>→</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.render(<ChatBot />, document.getElementById('root'));
+  </script>
+</body>
+</html>
